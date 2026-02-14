@@ -8,7 +8,12 @@ import { CopyToClipboard } from 'react-copy-to-clipboard';
 import { HiOutlineLink, HiOutlineCheckCircle, HiOutlineChartBar, HiOutlineArrowLeft } from 'react-icons/hi';
 
 const API_URL = 'https://real-time-polls.onrender.com/api';
+
+// const API_URL = 'http://localhost:5000/api';
+
 const SOCKET_URL = 'https://real-time-polls.onrender.com';
+
+// const SOCKET_URL ='http://localhost:5000';
 
 const PollRoom = () => {
   const { pollId } = useParams();

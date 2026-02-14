@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineArrowRight, HiOutlineArrowLeft } from 'react-icons/hi';
 
 const API_URL = 'https://real-time-polls.onrender.com/api';
+// const API_URL = 'http://localhost:5000/api';
+
 
 const CreatePoll = () => {
   const navigate = useNavigate();
@@ -79,7 +81,7 @@ const CreatePoll = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-red-600 py-16 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-grey-600 to-sky-500 py-16 px-4">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

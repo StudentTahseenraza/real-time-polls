@@ -13,7 +13,8 @@ import {
 } from 'react-icons/hi';
 import ShareModal from '../components/ShareModal';
 
-const API_URL = 'https://real-time-polls.onrender.com/api';
+// const API_URL = 'http://localhost:5000/api';
+   const API_URL = 'https://real-time-polls.onrender.com/api';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -25,6 +26,17 @@ const Home = () => {
 
   useEffect(() => {
     fetchRecentPolls();
+    
+    // Set up event listener for new poll creation
+    const handlePollCreated = () => {
+      fetchRecentPolls();
+    };
+    
+    window.addEventListener('pollCreated', handlePollCreated);
+    
+    return () => {
+      window.removeEventListener('pollCreated', handlePollCreated);
+    };
   }, []);
 
   useEffect(() => {
@@ -82,7 +94,7 @@ const Home = () => {
 
   const fetchRecentPolls = async () => {
     try {
-      const response = await axios.get(`${API_URL}/polls?limit=6`, {
+      const response = await axios.get(`${API_URL}/polls?limit=3`, {
         withCredentials: true
       });
       if (response.data.success) {
@@ -220,7 +232,7 @@ const Home = () => {
           ))}
         </motion.div>
 
-        {/* Recent Polls */}
+        {/* Recent Polls - Only 3 most recent, no delete icons */}
         {!loading && recentPolls.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
@@ -256,9 +268,11 @@ const Home = () => {
                         <HiOutlineClock />
                         <span>{formatDate(poll.createdAt)}</span>
                       </div>
+                      {/* Only share button, no delete on home page */}
                       <button
                         onClick={(e) => handleShare(poll, e)}
                         className="p-2 hover:bg-white/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Share poll"
                       >
                         <HiOutlineShare className="text-white" />
                       </button>
@@ -268,13 +282,28 @@ const Home = () => {
                       {poll.question}
                     </h3>
                     
-                    <div className="flex items-center gap-4 text-white/70 text-sm">
+                    <div className="flex items-center gap-4 text-white/70 text-sm mb-4">
                       <span>{poll.totalVotes} votes</span>
                       <span>•</span>
                       <span>{poll.options.length} options</span>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-white/10">
+                    {/* Options Preview */}
+                    <div className="space-y-2 mb-4">
+                      {poll.options.slice(0, 2).map((option, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-white/80 text-sm">
+                          <span className="truncate max-w-[150px]">{option.text}</span>
+                          <span className="font-medium">{option.votes}</span>
+                        </div>
+                      ))}
+                      {poll.options.length > 2 && (
+                        <div className="text-white/50 text-sm">
+                          +{poll.options.length - 2} more options
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10">
                       <div className="flex items-center justify-between text-white/80 text-sm">
                         <span>Click to view results</span>
                         <HiOutlinePlusCircle className="group-hover:rotate-90 transition-transform" />
