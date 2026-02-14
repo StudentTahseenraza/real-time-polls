@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import Home from './pages/Home';
 import CreatePoll from './pages/CreatePoll';
 import PollRoom from './pages/PollRoom';
+import PollHistory from './pages/PollHistory';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/create" element={<CreatePoll />} />
           <Route path="/poll/:pollId" element={<PollRoom />} />
+          <Route path="/history" element={<PollHistory />} />
         </Routes>
       </div>
     </Router>

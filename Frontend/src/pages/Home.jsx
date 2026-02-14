@@ -1,10 +1,31 @@
-import React, { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { HiOutlineSparkles, HiOutlineShare, HiOutlineChartBar, HiOutlineShieldCheck } from 'react-icons/hi';
+import axios from 'axios';
+import {
+  HiOutlineSparkles,
+  HiOutlineShare,
+  HiOutlineChartBar,
+  HiOutlineShieldCheck,
+  HiOutlineClock,
+  HiOutlineEye,
+  HiOutlinePlusCircle
+} from 'react-icons/hi';
+import ShareModal from '../components/ShareModal';
+
+const API_URL = 'http://localhost:5000/api';
 
 const Home = () => {
+  const navigate = useNavigate();
   const canvasRef = useRef(null);
+  const [recentPolls, setRecentPolls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPoll, setSelectedPoll] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  useEffect(() => {
+    fetchRecentPolls();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,6 +80,41 @@ const Home = () => {
     };
   }, []);
 
+  const fetchRecentPolls = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/polls?limit=6`, {
+        withCredentials: true
+      });
+      if (response.data.success) {
+        setRecentPolls(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching recent polls:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShare = (poll, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedPoll(poll);
+    setShowShareModal(true);
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffHours = Math.floor(diffMs / 3600000);
+    
+    if (diffHours < 24) {
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {/* Animated Background */}
@@ -104,13 +160,22 @@ const Home = () => {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <Link 
               to="/create" 
               className="inline-block px-8 py-4 bg-white text-purple-600 rounded-full font-semibold text-lg shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 hover:rotate-1"
             >
-              Create Your First Poll
+              Create New Poll
               <HiOutlineSparkles className="inline-block ml-2 animate-pulse" />
+            </Link>
+            
+            <Link 
+              to="/history" 
+              className="inline-block px-8 py-4 bg-white/20 backdrop-blur-sm text-white rounded-full font-semibold text-lg hover:bg-white/30 transform hover:scale-105 transition-all duration-300"
+            >
+              View Poll History
+              <HiOutlineEye className="inline-block ml-2" />
             </Link>
           </motion.div>
         </motion.div>
@@ -154,7 +219,85 @@ const Home = () => {
             </motion.div>
           ))}
         </motion.div>
+
+        {/* Recent Polls */}
+        {!loading && recentPolls.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="mt-24"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-bold text-white">Recent Polls</h2>
+              <Link 
+                to="/history" 
+                className="text-white/70 hover:text-white flex items-center gap-2 transition-all"
+              >
+                View All
+                <HiOutlineEye />
+              </Link>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recentPolls.map((poll, index) => (
+                <motion.div
+                  key={poll.pollId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -4 }}
+                  className="glass-morphism rounded-xl overflow-hidden cursor-pointer group"
+                  onClick={() => navigate(`/poll/${poll.pollId}`)}
+                >
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-white/60 text-sm">
+                        <HiOutlineClock />
+                        <span>{formatDate(poll.createdAt)}</span>
+                      </div>
+                      <button
+                        onClick={(e) => handleShare(poll, e)}
+                        className="p-2 hover:bg-white/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <HiOutlineShare className="text-white" />
+                      </button>
+                    </div>
+                    
+                    <h3 className="text-white font-semibold text-lg mb-3 line-clamp-2">
+                      {poll.question}
+                    </h3>
+                    
+                    <div className="flex items-center gap-4 text-white/70 text-sm">
+                      <span>{poll.totalVotes} votes</span>
+                      <span>•</span>
+                      <span>{poll.options.length} options</span>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <div className="flex items-center justify-between text-white/80 text-sm">
+                        <span>Click to view results</span>
+                        <HiOutlinePlusCircle className="group-hover:rotate-90 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </div>
+
+      {/* Share Modal */}
+      {selectedPoll && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          pollId={selectedPoll.pollId}
+          question={selectedPoll.question}
+          shareUrl={`${window.location.origin}/poll/${selectedPoll.pollId}`}
+        />
+      )}
     </div>
   );
 };

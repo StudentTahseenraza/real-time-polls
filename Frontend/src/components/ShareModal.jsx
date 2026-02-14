@@ -1,11 +1,6 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   HiOutlineX, 
-  HiOutlineMail, 
-  HiOutlineLink,
-  HiOutlineChat,
-  HiOutlineDocumentDuplicate
 } from 'react-icons/hi';
 import { 
   FaWhatsapp, 
@@ -13,10 +8,10 @@ import {
   FaFacebook, 
   FaTelegram,
   FaLinkedin,
-  FaReddit
+  FaReddit,
+  FaEnvelope
 } from 'react-icons/fa';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
-import toast from 'react-hot-toast';
+
 
 const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
   const encodedText = encodeURIComponent(`📊 Vote on this poll: "${question}"\n`);
@@ -67,12 +62,17 @@ const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
     },
     {
       name: 'Email',
-      icon: HiOutlineMail,
+      icon: FaEnvelope,
       color: 'bg-gray-600',
       hoverColor: 'hover:bg-gray-700',
       url: `mailto:?subject=${encodedText}&body=${encodedText}${encodedUrl}`
     }
   ];
+
+  // Prevent click propagation to backdrop
+  const handleModalClick = (e) => {
+    e.stopPropagation();
+  };
 
   return (
     <AnimatePresence>
@@ -84,98 +84,69 @@ const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-          />
-          
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl shadow-2xl z-50 p-6"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center"
+            style={{ 
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Share Poll</h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/20 rounded-lg transition-all"
-              >
-                <HiOutlineX className="text-white text-xl" />
-              </button>
-            </div>
-
-            {/* Poll Info */}
-            <div className="glass-morphism rounded-xl p-4 mb-6">
-              <p className="text-white/80 text-sm mb-1">Poll Question:</p>
-              <p className="text-white font-medium">{question}</p>
-              <p className="text-white/60 text-xs mt-2">Poll ID: {pollId}</p>
-            </div>
-
-            {/* Share Options */}
-            <div className="grid grid-cols-4 gap-3 mb-6">
-              {shareOptions.map((option) => (
-                <motion.a
-                  key={option.name}
-                  href={option.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`${option.color} ${option.hoverColor} p-4 rounded-xl flex flex-col items-center gap-2 text-white transition-all`}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={handleModalClick}
+              className="w-full max-w-2xl bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl shadow-2xl p-6 m-4"
+              style={{
+                maxHeight: '90vh',
+                overflowY: 'auto'
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Share Poll</h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-all"
                 >
-                  <option.icon className="text-2xl" />
-                  <span className="text-xs font-medium">{option.name}</span>
-                </motion.a>
-              ))}
-            </div>
-
-            {/* Copy Link */}
-            <div className="space-y-2">
-              <label className="text-white/80 text-sm">Or copy link directly:</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={shareUrl}
-                  readOnly
-                  className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none"
-                />
-                <CopyToClipboard 
-                  text={shareUrl} 
-                  onCopy={() => {
-                    toast.success('Link copied to clipboard!');
-                  }}
-                >
-                  <motion.button
-                    className="p-3 bg-white/20 hover:bg-white/30 rounded-lg text-white"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <HiOutlineDocumentDuplicate />
-                  </motion.button>
-                </CopyToClipboard>
+                  <HiOutlineX className="text-white text-xl" />
+                </button>
               </div>
-            </div>
 
-            {/* Embed Code (Optional) */}
-            <div className="mt-6 pt-6 border-t border-white/20">
-              <details className="text-white/80">
-                <summary className="cursor-pointer hover:text-white">Show embed code</summary>
-                <div className="mt-3 p-3 bg-black/30 rounded-lg">
-                  <code className="text-sm break-all">
-                    {`<iframe src="${shareUrl}/embed" width="600" height="400" frameborder="0"></iframe>`}
-                  </code>
-                  <CopyToClipboard 
-                    text={`<iframe src="${shareUrl}/embed" width="600" height="400" frameborder="0"></iframe>`}
-                    onCopy={() => toast.success('Embed code copied!')}
+              {/* Poll Info */}
+              <div className="glass-morphism rounded-xl p-4 mb-6">
+                <p className="text-white/80 text-sm mb-1">Poll Question:</p>
+                <p className="text-white font-medium break-words">{question}</p>
+                <p className="text-white/60 text-xs mt-2 font-mono">Poll ID: {pollId}</p>
+              </div>
+
+              {/* Share Options */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                {shareOptions.map((option) => (
+                  <motion.a
+                    key={option.name}
+                    href={option.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${option.color} ${option.hoverColor} p-4 rounded-xl flex flex-col items-center gap-2 text-white transition-all cursor-pointer`}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
                   >
-                    <button className="mt-2 text-sm text-white/60 hover:text-white">
-                      Copy embed code
-                    </button>
-                  </CopyToClipboard>
-                </div>
-              </details>
-            </div>
+                    <option.icon className="text-2xl" />
+                    <span className="text-xs font-medium text-center">{option.name}</span>
+                  </motion.a>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         </>
       )}

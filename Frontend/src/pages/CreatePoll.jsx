@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { HiOutlinePlus, HiOutlineTrash, HiOutlineArrowRight } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineTrash, HiOutlineArrowRight, HiOutlineArrowLeft } from 'react-icons/hi';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -85,6 +85,19 @@ const CreatePoll = () => {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-2xl mx-auto"
       >
+        {/* Back Button */}
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => navigate('/')}
+          className="mb-6 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all group"
+          whileHover={{ x: -5 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <HiOutlineArrowLeft className="group-hover:animate-pulse" />
+          <span>Back to Home</span>
+        </motion.button>
+
         <motion.div
           className="glass-morphism rounded-3xl p-8"
           whileHover={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
@@ -169,6 +182,13 @@ const CreatePoll = () => {
               <HiOutlineArrowRight className="animate-pulse" />
             </motion.button>
           </form>
+
+          {/* Quick Tips */}
+          <div className="mt-8 pt-6 border-t border-white/20">
+            <p className="text-white/60 text-sm text-center">
+              💡 Tips: Add at least 2 options | Max 10 options | Questions up to 500 characters
+            </p>
+          </div>
         </motion.div>
       </motion.div>
     </div>
