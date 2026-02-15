@@ -9,9 +9,9 @@ import {
   HiOutlineUserGroup,
   HiOutlineGlobe,
   HiOutlineChip,
-  HiOutlineKey
 } from 'react-icons/hi';
 
+import { HiOutlineCookie } from 'react-icons/hi2';
 
 
 const VoterDetailsModal = ({ isOpen, onClose, voters, options, votersByOption, totalVoters, loading }) => {
