@@ -273,6 +273,66 @@ class PollController {
     }
     return visitorId;
   }
+
+  /**
+ * Get voter details for a poll
+ */
+async getVoterDetails(req, res) {
+  try {
+    const { pollId } = req.params;
+    
+    const poll = await Poll.findOne({ pollId });
+    
+    if (!poll) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Poll not found' 
+      });
+    }
+
+    // Combine voter data from different sources
+    const voters = [];
+    
+    // Add IP-based voters
+    poll.ipAddresses.forEach((v, index) => {
+      voters.push({
+        voterId: `ip_${index + 1}`,
+        choice: v.choice,
+        votedAt: v.votedAt,
+        ip: v.ip,
+        method: 'IP',
+        isAnonymous: true
+      });
+    });
+
+    // Add cookie-based voters
+    poll.cookies.forEach((v, index) => {
+      voters.push({
+        voterId: `cookie_${v.cookieId.substring(0, 8)}`,
+        choice: v.choice,
+        votedAt: v.votedAt,
+        method: 'Cookie',
+        isAnonymous: true
+      });
+    });
+
+    // Sort by vote time (newest first)
+    voters.sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt));
+
+    res.json({
+      success: true,
+      data: voters,
+      total: voters.length
+    });
+  } catch (error) {
+    console.error('Error fetching voter details:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch voter details' 
+    });
+  }
+}
+
 }
 
 export default new PollController();

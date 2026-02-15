@@ -66,4 +66,11 @@ router.get(
   voteController.getVoteStats.bind(voteController)
 );
 
+// Get voter details
+router.get(
+  '/:pollId/voters',
+  param('pollId').isString().isLength({ min: 8, max: 8 }),
+  pollController.getVoterDetails.bind(pollController)
+);
+
 export default router;
