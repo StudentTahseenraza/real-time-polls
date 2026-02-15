@@ -14,10 +14,10 @@ import {
   HiOutlineChartBar
 } from 'react-icons/hi';
 
-const API_URL = 'http://localhost:5000/api';
+// const API_URL = 'http://localhost:5000/api';
 
 
-// const API_URL = 'https://real-time-polls.onrender.com/api';
+const API_URL = 'https://real-time-polls.onrender.com/api';
 
 const CreatePoll = () => {
   const navigate = useNavigate();
