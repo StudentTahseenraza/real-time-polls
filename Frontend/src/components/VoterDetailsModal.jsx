@@ -9,9 +9,9 @@ import {
   HiOutlineUserGroup,
   HiOutlineGlobe,
   HiOutlineChip,
+  HiOutlineKey
 } from 'react-icons/hi';
 
-import { HiOutlineCookie } from 'react-icons/hi2';
 
 
 const VoterDetailsModal = ({ isOpen, onClose, voters, options, votersByOption, totalVoters, loading }) => {
@@ -42,7 +42,7 @@ const VoterDetailsModal = ({ isOpen, onClose, voters, options, votersByOption, t
       case 'IP Address':
         return <HiOutlineGlobe className="text-blue-400" />;
       case 'Browser Cookie':
-        return <HiOutlineCookie className="text-yellow-400" />;
+        return <HiOutlineKey className="text-yellow-400" />;
       case 'User Agent':
         return <HiOutlineChip className="text-green-400" />;
       default:
