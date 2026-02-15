@@ -8,9 +8,11 @@ import {
   HiOutlineDesktopComputer,
   HiOutlineUserGroup,
   HiOutlineGlobe,
-  HiOutlineCookie,
-  HiOutlineChip
+  HiOutlineChip,
+  HiOutlineKey
 } from 'react-icons/hi';
+
+
 
 const VoterDetailsModal = ({ isOpen, onClose, voters, options, votersByOption, totalVoters, loading }) => {
   

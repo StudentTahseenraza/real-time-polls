@@ -16,7 +16,8 @@ import {
   HiOutlineUser,
   HiOutlineClock,
   HiOutlineCog,
-  HiOutlineStar
+  HiOutlineStar,
+  
 } from 'react-icons/hi';
 import ShareModal from '../components/ShareModal';
 import VoterDetailsModal from '../components/VoterDetailsModal';
