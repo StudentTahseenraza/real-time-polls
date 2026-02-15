@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import io from 'socket.io-client';
 import axios from 'axios';
@@ -15,27 +15,24 @@ import {
   HiOutlineUserGroup,
   HiOutlineUser,
   HiOutlineClock,
-  HiOutlineCog
+  HiOutlineCog,
+  HiOutlineStar
 } from 'react-icons/hi';
 import ShareModal from '../components/ShareModal';
 import VoterDetailsModal from '../components/VoterDetailsModal';
 
-// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-// const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
-
-
-const API_URL = 'https://real-time-polls.onrender.com/api';
-const SOCKET_URL = 'https://real-time-polls.onrender.com';
+const API_URL ='http://localhost:5000/api';
+const SOCKET_URL = 'http://localhost:5000';
 
 const PollRoom = () => {
   const { pollId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [poll, setPoll] = useState(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [socket, setSocket] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showVoterDetails, setShowVoterDetails] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
@@ -43,38 +40,85 @@ const PollRoom = () => {
   const [loadingVoters, setLoadingVoters] = useState(false);
 
   useEffect(() => {
-    // Check if user is the creator (has creator cookie or came from home)
+    // MULTIPLE WAYS TO CHECK CREATOR STATUS
     const checkCreatorStatus = () => {
-      // You can set a creator flag in localStorage when creating the poll
-      const creatorPolls = JSON.parse(localStorage.getItem('creatorPolls') || '[]');
-      setIsCreator(creatorPolls.includes(pollId));
+      console.log('🔍 Checking creator status for poll:', pollId);
+      
+      // Method 1: Check navigation state (from creation)
+      if (location.state?.isCreator) {
+        console.log('✅ Creator detected from navigation state');
+        return true;
+      }
+      
+      // Method 2: Check sessionStorage (set during creation)
+      const sessionCreator = sessionStorage.getItem(`creator_${pollId}`);
+      if (sessionCreator === 'true') {
+        console.log('✅ Creator detected from sessionStorage');
+        return true;
+      }
+      
+      // Method 3: Check localStorage (creator polls list)
+      try {
+        const creatorPolls = JSON.parse(localStorage.getItem('creatorPolls') || '[]');
+        const isInCreatorList = creatorPolls.some(p => 
+          typeof p === 'string' ? p === pollId : p.pollId === pollId
+        );
+        if (isInCreatorList) {
+          console.log('✅ Creator detected from creatorPolls list');
+          return true;
+        }
+      } catch (e) {
+        console.error('Error parsing creatorPolls:', e);
+      }
+      
+      // Method 4: Check if user has the creator cookie (backend would need to validate)
+      // This is a fallback - you could add an API endpoint to check creator status
+      
+      console.log('❌ Not a creator (shared view mode)');
+      return false;
     };
 
     const newSocket = io(SOCKET_URL);
     setSocket(newSocket);
 
-    checkCreatorStatus();
+    // Set creator status
+    const creatorStatus = checkCreatorStatus();
+    setIsCreator(creatorStatus);
+    
+    // If creator, ensure sessionStorage is set
+    if (creatorStatus) {
+      sessionStorage.setItem(`creator_${pollId}`, 'true');
+    }
 
     return () => newSocket.close();
-  }, [pollId]);
+  }, [pollId, location.state]);
 
   useEffect(() => {
     if (socket && pollId) {
       socket.emit('join-poll', pollId);
       
       socket.on('vote-update', (updatedPoll) => {
+        console.log('📊 Real-time vote update received');
         setPoll(prev => ({
           ...prev,
           options: updatedPoll.options,
           totalVotes: updatedPoll.totalVotes
         }));
+        
+        // Show toast for real-time vote
+        if (!hasVoted) {
+          toast.success('New vote received!', {
+            icon: '🗳️',
+            duration: 2000
+          });
+        }
       });
 
       return () => {
         socket.off('vote-update');
       };
     }
-  }, [socket, pollId]);
+  }, [socket, pollId, hasVoted]);
 
   useEffect(() => {
     if (pollId) {
@@ -85,14 +129,18 @@ const PollRoom = () => {
   const fetchPoll = async () => {
     try {
       setLoading(true);
+      console.log('📡 Fetching poll:', pollId);
+      
       const response = await axios.get(`${API_URL}/polls/${pollId}`, {
         withCredentials: true
       });
 
+      console.log('📥 Poll response:', response.data);
+
       if (response.data.success) {
         setPoll(response.data.data);
         
-        // Check if user has voted
+        // Check if user has voted from localStorage
         const voted = localStorage.getItem(`voted_${pollId}`);
         setHasVoted(!!voted);
       } else {
@@ -109,9 +157,14 @@ const PollRoom = () => {
   const fetchVoterDetails = async () => {
     setLoadingVoters(true);
     try {
+      console.log('📡 Fetching voter details for poll:', pollId);
+      
       const response = await axios.get(`${API_URL}/polls/${pollId}/voters`, {
-        withCredentials: true
+        withCredentials: true,
+        timeout: 10000
       });
+
+      console.log('📥 Voter details response:', response.data);
 
       if (response.data.success) {
         setVoterDetails(response.data.data);
@@ -119,7 +172,17 @@ const PollRoom = () => {
       }
     } catch (error) {
       console.error('Error fetching voter details:', error);
-      toast.error('Failed to load voter details');
+      
+      let errorMessage = 'Failed to load voter details';
+      if (error.response?.status === 404) {
+        errorMessage = 'Voter details not found';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. Please check your connection.';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoadingVoters(false);
     }
@@ -133,6 +196,8 @@ const PollRoom = () => {
 
     setVoting(true);
     try {
+      console.log('📤 Voting on poll:', pollId, 'option:', optionIndex);
+      
       const response = await axios.post(
         `${API_URL}/polls/${pollId}/vote`,
         { optionIndex },
@@ -140,19 +205,41 @@ const PollRoom = () => {
           withCredentials: true,
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 10000
         }
       );
+
+      console.log('📥 Vote response:', response.data);
 
       if (response.data.success) {
         setPoll(response.data.data);
         localStorage.setItem(`voted_${pollId}`, 'true');
         setHasVoted(true);
-        toast.success('Vote recorded successfully!');
+        toast.success('Vote recorded successfully!', {
+          icon: '✅',
+          duration: 3000
+        });
+        
+        // Show success animation
+        const optionElement = document.getElementById(`option-${optionIndex}`);
+        if (optionElement) {
+          optionElement.classList.add('vote-success');
+          setTimeout(() => {
+            optionElement.classList.remove('vote-success');
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error voting:', error);
-      toast.error(error.response?.data?.error || 'Failed to vote');
+      
+      if (error.response?.status === 429) {
+        toast.error('Too many votes. Please try again later.');
+      } else if (error.response?.status === 400) {
+        toast.error(error.response.data?.error || 'Invalid vote');
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to vote');
+      }
     } finally {
       setVoting(false);
     }
@@ -166,11 +253,14 @@ const PollRoom = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-pink-600">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-white border-t-transparent rounded-full"
-        />
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-white/70">Loading poll...</p>
+        </div>
       </div>
     );
   }
@@ -202,7 +292,7 @@ const PollRoom = () => {
           animate={{ opacity: 1, y: 0 }}
           className="glass-morphism rounded-3xl p-8"
         >
-          {/* Header - Different for Creator vs Shared View */}
+          {/* Header - Creator gets Back button, Shared users don't */}
           <div className="flex items-center justify-between mb-6">
             {/* Left side - Back button ONLY for creator */}
             <div className="flex items-center gap-4">
@@ -210,6 +300,7 @@ const PollRoom = () => {
                 <button
                   onClick={() => navigate('/')}
                   className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all group"
+                  title="Back to Home"
                 >
                   <HiOutlineArrowLeft className="group-hover:animate-pulse" />
                   <span>Back to Home</span>
@@ -222,36 +313,47 @@ const PollRoom = () => {
               )}
             </div>
 
-            {/* Right side - Share button ONLY for creator */}
+            {/* Right side - Actions for creator */}
             <div className="flex items-center gap-2">
               {isCreator && (
                 <>
                   <button
                     onClick={fetchVoterDetails}
                     disabled={loadingVoters}
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all"
+                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all disabled:opacity-50"
+                    title="View voter details"
                   >
-                    <HiOutlineUserGroup />
-                    <span>View Voters</span>
+                    {loadingVoters ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <HiOutlineUserGroup />
+                    )}
+                    <span className="hidden sm:inline">View Voters</span>
                   </button>
                   <button
                     onClick={() => setShowShareModal(true)}
                     className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all"
+                    title="Share poll"
                   >
                     <HiOutlineShare />
-                    Share Poll
+                    <span className="hidden sm:inline">Share</span>
                   </button>
                 </>
               )}
             </div>
           </div>
 
-          {/* Creator Badge */}
+          {/* Creator Badge - Only visible to creator */}
           {isCreator && (
-            <div className="mb-4 inline-block px-3 py-1 bg-yellow-500/30 rounded-full text-yellow-300 text-xs flex items-center gap-1">
-              <HiOutlineCog />
-              <span>Creator Mode • Full Access</span>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 rounded-lg border border-yellow-500/30"
+            >
+              <HiOutlineCog className="text-yellow-400" />
+              <span className="text-yellow-300 text-sm font-medium">Creator Mode • Full Access</span>
+              <HiOutlineStar className="text-yellow-400 ml-2" />
+            </motion.div>
           )}
 
           {/* Poll Question */}
@@ -289,6 +391,7 @@ const PollRoom = () => {
                 return (
                   <motion.div
                     key={index}
+                    id={`option-${index}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
@@ -306,9 +409,13 @@ const PollRoom = () => {
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{option.text}</span>
                             {option.votes > 0 && (
-                              <span className="text-xs bg-green-500/30 text-green-300 px-2 py-1 rounded-full">
+                              <motion.span 
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="text-xs bg-green-500/30 text-green-300 px-2 py-1 rounded-full"
+                              >
                                 {option.votes} {option.votes === 1 ? 'vote' : 'votes'}
-                              </span>
+                              </motion.span>
                             )}
                           </div>
                           <span className="font-bold">
@@ -322,11 +429,26 @@ const PollRoom = () => {
                             initial={{ width: 0 }}
                             animate={{ width: `${percentage}%` }}
                             transition={{ duration: 0.5, delay: index * 0.1 }}
-                            className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full"
-                          />
+                            className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full relative"
+                          >
+                            {option.votes > 0 && (
+                              <motion.div
+                                animate={{ 
+                                  scale: [1, 1.2, 1],
+                                  opacity: [0.5, 1, 0.5]
+                                }}
+                                transition={{ 
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  ease: "easeInOut"
+                                }}
+                                className="absolute right-0 top-0 bottom-0 w-1 bg-white/50"
+                              />
+                            )}
+                          </motion.div>
                         </div>
 
-                        {/* Voter Avatars Preview (for creator) */}
+                        {/* Voter Preview (only for creator) */}
                         {isCreator && option.votes > 0 && (
                           <div className="mt-2 flex items-center gap-1 text-xs text-white/60">
                             <HiOutlineUser className="text-white/40" />
@@ -355,7 +477,7 @@ const PollRoom = () => {
             </motion.div>
           )}
 
-          {/* View Votes Button (for shared users) */}
+          {/* View Votes Button (for shared users) - Shows even after voting */}
           {!isCreator && poll.totalVotes > 0 && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -365,9 +487,13 @@ const PollRoom = () => {
               <button
                 onClick={fetchVoterDetails}
                 disabled={loadingVoters}
-                className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-white inline-flex items-center gap-2 transition-all"
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-white inline-flex items-center gap-2 transition-all disabled:opacity-50"
               >
-                <HiOutlineEye />
+                {loadingVoters ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <HiOutlineEye />
+                )}
                 {loadingVoters ? 'Loading...' : 'View Vote Details'}
               </button>
             </motion.div>
@@ -381,7 +507,7 @@ const PollRoom = () => {
             className="mt-8 flex items-center justify-center gap-2 text-white/40 text-sm"
           >
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span>Live • {poll.totalVotes} people have voted</span>
+            <span>Live • {poll.totalVotes} {poll.totalVotes === 1 ? 'person has' : 'people have'} voted</span>
           </motion.div>
         </motion.div>
       </div>
@@ -401,8 +527,10 @@ const PollRoom = () => {
       <VoterDetailsModal
         isOpen={showVoterDetails}
         onClose={() => setShowVoterDetails(false)}
-        voters={voterDetails}
-        options={poll?.options || []}
+        voters={voterDetails?.voters || []}
+        options={poll?.options?.map(opt => opt.text) || []}
+        votersByOption={voterDetails?.votersByOption || {}}
+        totalVoters={voterDetails?.totalVoters || 0}
         loading={loadingVoters}
       />
     </div>
@@ -410,6 +538,3 @@ const PollRoom = () => {
 };
 
 export default PollRoom;
-
-
-

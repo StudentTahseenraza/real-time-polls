@@ -1,6 +1,7 @@
 import pollService from '../services/pollService.js';
 import { validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
+import Poll from '../models/Poll.js'; // ⚠️ THIS WAS MISSING - ADD THIS IMPORT
 
 class PollController {
   /**
@@ -275,114 +276,122 @@ class PollController {
   }
 
   /**
- * Get voter details for a poll
- */
-async getVoterDetails(req, res) {
-  try {
-    const { pollId } = req.params;
-    
-    console.log('🔍 Fetching voter details for poll:', pollId);
-    
-    const poll = await Poll.findOne({ pollId });
-    
-    if (!poll) {
-      console.log('❌ Poll not found:', pollId);
-      return res.status(404).json({ 
-        success: false,
-        error: 'Poll not found' 
-      });
-    }
-
-    // Safely combine voter data from different sources
-    const voters = [];
-    
-    // Add IP-based voters (with null checks)
-    if (poll.ipAddresses && Array.isArray(poll.ipAddresses)) {
-      poll.ipAddresses.forEach((v, index) => {
-        if (v && v.choice !== undefined) {
-          voters.push({
-            voterId: `ip_${index + 1}`,
-            choice: v.choice,
-            votedAt: v.votedAt || new Date(),
-            ip: v.ip ? v.ip.split(':')[0] : 'Unknown',
-            method: 'IP',
-            isAnonymous: true
-          });
-        }
-      });
-    }
-
-    // Add cookie-based voters (with null checks)
-    if (poll.cookies && Array.isArray(poll.cookies)) {
-      poll.cookies.forEach((v, index) => {
-        if (v && v.choice !== undefined) {
-          voters.push({
-            voterId: v.cookieId ? `cookie_${v.cookieId.substring(0, 8)}` : `cookie_${index + 1}`,
-            choice: v.choice,
-            votedAt: v.votedAt || new Date(),
-            method: 'Cookie',
-            isAnonymous: true
-          });
-        }
-      });
-    }
-
-    // Add user agent voters (optional)
-    if (poll.userAgents && Array.isArray(poll.userAgents)) {
-      poll.userAgents.forEach((v, index) => {
-        if (v && v.choice !== undefined && !voters.some(existing => 
-          existing.votedAt && v.votedAt && 
-          Math.abs(new Date(existing.votedAt) - new Date(v.votedAt)) < 1000
-        )) {
-          // Avoid duplicates with very close timestamps
-          voters.push({
-            voterId: `ua_${index + 1}`,
-            choice: v.choice,
-            votedAt: v.votedAt || new Date(),
-            method: 'User Agent',
-            isAnonymous: true
-          });
-        }
-      });
-    }
-
-    // Remove duplicates based on choice and approximate time
-    const uniqueVoters = [];
-    const seen = new Set();
-    
-    voters.sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt));
-    
-    for (const voter of voters) {
-      const key = `${voter.choice}-${new Date(voter.votedAt).getTime()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueVoters.push(voter);
+   * Get voter details for a poll - FIXED VERSION
+   */
+  async getVoterDetails(req, res) {
+    try {
+      const { pollId } = req.params;
+      
+      console.log('🔍 Fetching voter details for poll:', pollId);
+      
+      // Use Poll model directly (now imported)
+      const poll = await Poll.findOne({ pollId });
+      
+      if (!poll) {
+        console.log('❌ Poll not found:', pollId);
+        return res.status(404).json({ 
+          success: false,
+          error: 'Poll not found' 
+        });
       }
+
+      console.log('✅ Poll found, processing voter data...');
+
+      // Initialize arrays if they don't exist
+      const ipAddresses = poll.ipAddresses || [];
+      const cookies = poll.cookies || [];
+      const userAgents = poll.userAgents || [];
+
+      // Safely combine voter data from different sources
+      const voters = [];
+      
+      // Add IP-based voters
+      ipAddresses.forEach((v, index) => {
+        if (v && v.choice !== undefined) {
+          voters.push({
+            id: `ip_${index + 1}`,
+            voterType: 'IP Address',
+            choice: v.choice,
+            votedAt: v.votedAt || new Date(),
+            identifier: v.ip ? v.ip.split(':')[0] : 'Unknown',
+            isAnonymous: true
+          });
+        }
+      });
+
+      // Add cookie-based voters
+      cookies.forEach((v, index) => {
+        if (v && v.choice !== undefined) {
+          voters.push({
+            id: `cookie_${index + 1}`,
+            voterType: 'Browser Cookie',
+            choice: v.choice,
+            votedAt: v.votedAt || new Date(),
+            identifier: v.cookieId ? v.cookieId.substring(0, 8) + '...' : 'Unknown',
+            isAnonymous: true
+          });
+        }
+      });
+
+      // Add user agent voters (avoid duplicates with close timestamps)
+      userAgents.forEach((v, index) => {
+        if (v && v.choice !== undefined) {
+          // Check if this vote might be a duplicate (within 2 seconds)
+          const isDuplicate = voters.some(existing => 
+            existing.choice === v.choice && 
+            Math.abs(new Date(existing.votedAt) - new Date(v.votedAt || new Date())) < 2000
+          );
+          
+          if (!isDuplicate) {
+            voters.push({
+              id: `ua_${index + 1}`,
+              voterType: 'User Agent',
+              choice: v.choice,
+              votedAt: v.votedAt || new Date(),
+              identifier: v.ua ? v.ua.substring(0, 20) + '...' : 'Unknown',
+              isAnonymous: true
+            });
+          }
+        }
+      });
+
+      // Sort by vote time (newest first)
+      voters.sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt));
+
+      // Group voters by option for frontend display
+      const votersByOption = {};
+      poll.options.forEach((option, index) => {
+        votersByOption[index] = {
+          optionText: option.text,
+          voters: voters.filter(v => v.choice === index)
+        };
+      });
+
+      console.log(`✅ Returning ${voters.length} voters for poll ${pollId}`);
+
+      res.json({
+        success: true,
+        data: {
+          pollId: poll.pollId,
+          question: poll.question,
+          totalVoters: voters.length,
+          voters: voters,
+          votersByOption: votersByOption,
+          options: poll.options.map(opt => opt.text)
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error in getVoterDetails:', error);
+      console.error('Error stack:', error.stack);
+      
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to fetch voter details',
+        message: error.message
+      });
     }
-
-    console.log(`✅ Found ${uniqueVoters.length} unique voters for poll ${pollId}`);
-
-    res.json({
-      success: true,
-      data: uniqueVoters,
-      total: uniqueVoters.length,
-      pollId: poll.pollId,
-      question: poll.question
-    });
-
-  } catch (error) {
-    console.error('❌ Error in getVoterDetails:', error);
-    console.error('Error stack:', error.stack);
-    
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to fetch voter details',
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
   }
-}
-
 }
 
 export default new PollController();
