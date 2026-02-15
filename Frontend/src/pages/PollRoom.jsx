@@ -5,15 +5,23 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { CopyToClipboard } from 'react-copy-to-clipboard';
-import { HiOutlineLink, HiOutlineCheckCircle, HiOutlineChartBar, HiOutlineArrowLeft } from 'react-icons/hi';
-
-const API_URL = 'https://real-time-polls.onrender.com/api';
+import { 
+  HiOutlineLink, 
+  HiOutlineCheckCircle, 
+  HiOutlineChartBar, 
+  HiOutlineArrowLeft,
+  HiOutlineUsers,
+  HiOutlineEye,
+  HiOutlineShare
+} from 'react-icons/hi';
+import ShareModal from '../components/ShareModal';
 
 // const API_URL = 'http://localhost:5000/api';
-
+// const SOCKET_URL = 'http://localhost:5000';
 const SOCKET_URL = 'https://real-time-polls.onrender.com';
+const API_URL = 'https://real-time-polls.onrender.com/api';
 
-// const SOCKET_URL ='http://localhost:5000';
+
 
 const PollRoom = () => {
   const { pollId } = useParams();
@@ -24,8 +32,16 @@ const PollRoom = () => {
   const [hasVoted, setHasVoted] = useState(false);
   const [socket, setSocket] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [isSharedView, setIsSharedView] = useState(false);
+  const [liveVoters, setLiveVoters] = useState({});
 
   useEffect(() => {
+    // Check if user came from shared link
+    const referrer = document.referrer;
+    const isShared = !referrer.includes(window.location.origin) && referrer !== '';
+    setIsSharedView(isShared);
+
     const newSocket = io(SOCKET_URL);
     setSocket(newSocket);
 
@@ -43,6 +59,13 @@ const PollRoom = () => {
           options: updatedPoll.options,
           totalVotes: updatedPoll.totalVotes
         }));
+
+        // Update live voters count
+        const voters = {};
+        updatedPoll.options.forEach((opt, idx) => {
+          voters[idx] = opt.votes;
+        });
+        setLiveVoters(voters);
       });
 
       return () => {
@@ -71,17 +94,28 @@ const PollRoom = () => {
       if (response.data.success) {
         setPoll(response.data.data);
         
+        // Initialize live voters
+        const voters = {};
+        response.data.data.options.forEach((opt, idx) => {
+          voters[idx] = opt.votes;
+        });
+        setLiveVoters(voters);
+        
         // Check if user has voted in this session
         const voted = localStorage.getItem(`voted_${pollId}`);
         setHasVoted(!!voted);
       } else {
         toast.error('Poll not found');
-        setTimeout(() => navigate('/'), 3000);
+        if (!isSharedView) {
+          setTimeout(() => navigate('/'), 3000);
+        }
       }
     } catch (error) {
       console.error('Error fetching poll:', error);
       toast.error(error.response?.data?.error || 'Poll not found');
-      setTimeout(() => navigate('/'), 3000);
+      if (!isSharedView) {
+        setTimeout(() => navigate('/'), 3000);
+      }
     } finally {
       setLoading(false);
     }
@@ -112,6 +146,14 @@ const PollRoom = () => {
         setPoll(response.data.data);
         localStorage.setItem(`voted_${pollId}`, 'true');
         setHasVoted(true);
+        
+        // Update live voters
+        const voters = {};
+        response.data.data.options.forEach((opt, idx) => {
+          voters[idx] = opt.votes;
+        });
+        setLiveVoters(voters);
+        
         toast.success('Vote recorded successfully!');
       } else {
         toast.error(response.data.error || 'Failed to vote');
@@ -145,18 +187,21 @@ const PollRoom = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-600 to-pink-600">
         <div className="text-white text-2xl mb-4">Poll not found</div>
-        <button
-          onClick={() => navigate('/')}
-          className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-lg text-white flex items-center gap-2 transition-all"
-        >
-          <HiOutlineArrowLeft />
-          Go to Home
-        </button>
+        {!isSharedView && (
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-lg text-white flex items-center gap-2 transition-all"
+          >
+            <HiOutlineArrowLeft />
+            Go to Home
+          </button>
+        )}
       </div>
     );
   }
 
   const shareUrl = window.location.href;
+  const totalVoters = Object.values(liveVoters).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 py-16 px-4">
@@ -166,41 +211,33 @@ const PollRoom = () => {
           animate={{ opacity: 1, y: 0 }}
           className="glass-morphism rounded-3xl p-8"
         >
-          {/* Back Button */}
-          <button
-            onClick={() => navigate('/')}
-            className="mb-6 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all"
-          >
-            <HiOutlineArrowLeft />
-            Back to Home
-          </button>
-
-          {/* Share Link */}
-          <div className="mb-8">
-            <label className="block text-white mb-2 font-medium">
-              Share this poll
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={shareUrl}
-                readOnly
-                className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none"
-              />
-              <CopyToClipboard text={shareUrl} onCopy={() => {
-                setCopied(true);
-                toast.success('Link copied!');
-                setTimeout(() => setCopied(false), 2000);
-              }}>
-                <motion.button
-                  className="p-3 bg-white/10 hover:bg-white/20 rounded-lg text-white"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  {copied ? <HiOutlineCheckCircle /> : <HiOutlineLink />}
-                </motion.button>
-              </CopyToClipboard>
-            </div>
+          {/* Header - Conditional based on shared view */}
+          <div className="flex items-center justify-between mb-6">
+            {!isSharedView ? (
+              <button
+                onClick={() => navigate('/')}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all group"
+              >
+                <HiOutlineArrowLeft className="group-hover:animate-pulse" />
+                <span>Back to Home</span>
+              </button>
+            ) : (
+              <div className="px-4 py-2 bg-white/10 rounded-lg text-white/80 text-sm">
+                <HiOutlineEye className="inline mr-2" />
+                Viewing Shared Poll
+              </div>
+            )}
+            
+            {/* Share Button - Only show to non-shared viewers */}
+            {!isSharedView && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2 transition-all"
+              >
+                <HiOutlineShare />
+                Share Poll
+              </button>
+            )}
           </div>
 
           {/* Poll Question */}
@@ -208,15 +245,12 @@ const PollRoom = () => {
             {poll.question}
           </h1>
 
-          {/* Poll ID */}
-          <div className="text-center text-white/60 mb-4 text-sm">
-            Poll ID: {poll.pollId}
-          </div>
-
-          {/* Total Votes */}
-          <div className="flex items-center justify-center gap-2 text-white/70 mb-8">
-            <HiOutlineChartBar />
-            <span>{poll.totalVotes} total votes</span>
+          {/* Live Voter Count */}
+          <div className="flex items-center justify-center gap-4 text-white/70 mb-6">
+            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full">
+              <HiOutlineUsers className="text-pink-300" />
+              <span className="font-medium">{totalVoters} total {totalVoters === 1 ? 'vote' : 'votes'}</span>
+            </div>
           </div>
 
           {/* Options */}
@@ -224,6 +258,8 @@ const PollRoom = () => {
             <AnimatePresence>
               {poll.options.map((option, index) => {
                 const percentage = calculatePercentage(option.votes);
+                const currentVotes = liveVoters[index] || 0;
+                
                 return (
                   <motion.div
                     key={index}
@@ -241,21 +277,60 @@ const PollRoom = () => {
                     >
                       <div className="relative z-10 glass-morphism rounded-xl p-4 hover:bg-white/20 transition-all">
                         <div className="flex items-center justify-between text-white mb-2">
-                          <span className="font-medium">{option.text}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{option.text}</span>
+                            {currentVotes > 0 && (
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="text-xs bg-green-500/30 text-green-300 px-2 py-1 rounded-full"
+                              >
+                                {currentVotes} {currentVotes === 1 ? 'voter' : 'voters'}
+                              </motion.span>
+                            )}
+                          </div>
                           <span className="font-bold">
                             {option.votes} ({percentage}%)
                           </span>
                         </div>
                         
                         {/* Progress Bar */}
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${percentage}%` }}
                             transition={{ duration: 0.5, delay: index * 0.1 }}
-                            className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full"
-                          />
+                            className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full relative"
+                          >
+                            {/* Live indicator */}
+                            {currentVotes > 0 && (
+                              <motion.div
+                                animate={{ 
+                                  scale: [1, 1.2, 1],
+                                  opacity: [0.5, 1, 0.5]
+                                }}
+                                transition={{ 
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  ease: "easeInOut"
+                                }}
+                                className="absolute right-0 top-0 bottom-0 w-1 bg-white/50"
+                              />
+                            )}
+                          </motion.div>
                         </div>
+
+                        {/* Live Vote Counter Animation */}
+                        {currentVotes > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 text-xs text-white/60 flex items-center gap-1"
+                          >
+                            <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
+                            <span>{currentVotes} people voted for this option</span>
+                          </motion.div>
+                        )}
                       </div>
                     </motion.button>
                   </motion.div>
@@ -276,8 +351,30 @@ const PollRoom = () => {
               </p>
             </motion.div>
           )}
+
+          {/* Live Activity Indicator */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1 }}
+            className="mt-8 flex items-center justify-center gap-2 text-white/40 text-sm"
+          >
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <span>Live • {totalVoters} people have voted</span>
+          </motion.div>
         </motion.div>
       </div>
+
+      {/* Share Modal - Only for non-shared viewers */}
+      {!isSharedView && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          pollId={poll.pollId}
+          question={poll.question}
+          shareUrl={shareUrl}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,10 @@
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   HiOutlineX, 
+  HiOutlineMail, 
+  HiOutlineLink,
+  HiOutlineDocumentDuplicate
 } from 'react-icons/hi';
 import { 
   FaWhatsapp, 
@@ -11,7 +15,8 @@ import {
   FaReddit,
   FaEnvelope
 } from 'react-icons/fa';
-
+import { CopyToClipboard } from 'react-copy-to-clipboard';
+import toast from 'react-hot-toast';
 
 const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
   const encodedText = encodeURIComponent(`📊 Vote on this poll: "${question}"\n`);
@@ -69,7 +74,6 @@ const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
     }
   ];
 
-  // Prevent click propagation to backdrop
   const handleModalClick = (e) => {
     e.stopPropagation();
   };
@@ -119,11 +123,10 @@ const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
                 </button>
               </div>
 
-              {/* Poll Info */}
+              {/* Poll Info - Without Poll ID */}
               <div className="glass-morphism rounded-xl p-4 mb-6">
                 <p className="text-white/80 text-sm mb-1">Poll Question:</p>
                 <p className="text-white font-medium break-words">{question}</p>
-                <p className="text-white/60 text-xs mt-2 font-mono">Poll ID: {pollId}</p>
               </div>
 
               {/* Share Options */}
@@ -145,6 +148,40 @@ const ShareModal = ({ isOpen, onClose, pollId, question, shareUrl }) => {
                     <span className="text-xs font-medium text-center">{option.name}</span>
                   </motion.a>
                 ))}
+              </div>
+
+              {/* Copy Link */}
+              <div className="space-y-2">
+                <label className="text-white/80 text-sm">Or copy link directly:</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={shareUrl}
+                    readOnly
+                    className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none"
+                  />
+                  <CopyToClipboard 
+                    text={shareUrl} 
+                    onCopy={() => {
+                      toast.success('Link copied to clipboard!');
+                    }}
+                  >
+                    <motion.button
+                      className="p-3 bg-white/20 hover:bg-white/30 rounded-lg text-white"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <HiOutlineDocumentDuplicate />
+                    </motion.button>
+                  </CopyToClipboard>
+                </div>
+              </div>
+
+              {/* Share Note */}
+              <div className="mt-6 pt-6 border-t border-white/20">
+                <p className="text-white/60 text-sm text-center">
+                  🔗 Anyone with this link can vote. Results update in real-time!
+                </p>
               </div>
             </motion.div>
           </motion.div>
