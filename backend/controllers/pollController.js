@@ -281,54 +281,104 @@ async getVoterDetails(req, res) {
   try {
     const { pollId } = req.params;
     
+    console.log('🔍 Fetching voter details for poll:', pollId);
+    
     const poll = await Poll.findOne({ pollId });
     
     if (!poll) {
+      console.log('❌ Poll not found:', pollId);
       return res.status(404).json({ 
         success: false,
         error: 'Poll not found' 
       });
     }
 
-    // Combine voter data from different sources
+    // Safely combine voter data from different sources
     const voters = [];
     
-    // Add IP-based voters
-    poll.ipAddresses.forEach((v, index) => {
-      voters.push({
-        voterId: `ip_${index + 1}`,
-        choice: v.choice,
-        votedAt: v.votedAt,
-        ip: v.ip,
-        method: 'IP',
-        isAnonymous: true
+    // Add IP-based voters (with null checks)
+    if (poll.ipAddresses && Array.isArray(poll.ipAddresses)) {
+      poll.ipAddresses.forEach((v, index) => {
+        if (v && v.choice !== undefined) {
+          voters.push({
+            voterId: `ip_${index + 1}`,
+            choice: v.choice,
+            votedAt: v.votedAt || new Date(),
+            ip: v.ip ? v.ip.split(':')[0] : 'Unknown',
+            method: 'IP',
+            isAnonymous: true
+          });
+        }
       });
-    });
+    }
 
-    // Add cookie-based voters
-    poll.cookies.forEach((v, index) => {
-      voters.push({
-        voterId: `cookie_${v.cookieId.substring(0, 8)}`,
-        choice: v.choice,
-        votedAt: v.votedAt,
-        method: 'Cookie',
-        isAnonymous: true
+    // Add cookie-based voters (with null checks)
+    if (poll.cookies && Array.isArray(poll.cookies)) {
+      poll.cookies.forEach((v, index) => {
+        if (v && v.choice !== undefined) {
+          voters.push({
+            voterId: v.cookieId ? `cookie_${v.cookieId.substring(0, 8)}` : `cookie_${index + 1}`,
+            choice: v.choice,
+            votedAt: v.votedAt || new Date(),
+            method: 'Cookie',
+            isAnonymous: true
+          });
+        }
       });
-    });
+    }
 
-    // Sort by vote time (newest first)
+    // Add user agent voters (optional)
+    if (poll.userAgents && Array.isArray(poll.userAgents)) {
+      poll.userAgents.forEach((v, index) => {
+        if (v && v.choice !== undefined && !voters.some(existing => 
+          existing.votedAt && v.votedAt && 
+          Math.abs(new Date(existing.votedAt) - new Date(v.votedAt)) < 1000
+        )) {
+          // Avoid duplicates with very close timestamps
+          voters.push({
+            voterId: `ua_${index + 1}`,
+            choice: v.choice,
+            votedAt: v.votedAt || new Date(),
+            method: 'User Agent',
+            isAnonymous: true
+          });
+        }
+      });
+    }
+
+    // Remove duplicates based on choice and approximate time
+    const uniqueVoters = [];
+    const seen = new Set();
+    
     voters.sort((a, b) => new Date(b.votedAt) - new Date(a.votedAt));
+    
+    for (const voter of voters) {
+      const key = `${voter.choice}-${new Date(voter.votedAt).getTime()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueVoters.push(voter);
+      }
+    }
+
+    console.log(`✅ Found ${uniqueVoters.length} unique voters for poll ${pollId}`);
 
     res.json({
       success: true,
-      data: voters,
-      total: voters.length
+      data: uniqueVoters,
+      total: uniqueVoters.length,
+      pollId: poll.pollId,
+      question: poll.question
     });
+
   } catch (error) {
-    console.error('Error fetching voter details:', error);
+    console.error('❌ Error in getVoterDetails:', error);
+    console.error('Error stack:', error.stack);
+    
     res.status(500).json({ 
       success: false,
-      error: 'Failed to fetch voter details' 
+      error: 'Failed to fetch voter details',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
